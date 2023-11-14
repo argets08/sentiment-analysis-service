@@ -10,11 +10,12 @@ from transformers import pipeline
 import uvicorn
 
 app = FastAPI()
+# Alpaca API credentials
 API_KEY = ""
 API_SECRET = ""
 ALPACA_BASE_URL = 'https://data.alpaca.markets'
 logging.getLogger("transformers").setLevel(logging.ERROR)
-SCORE_THRESHOLD = 0.985
+SCORE_THRESHOLD = 0.99
 
 @app.get("/")
 async def root():
@@ -52,7 +53,7 @@ def print_stock_sentiment(stock, average_score, overall_sentiment, color):
     print(colored(f"Stock: {stock}",'blue'))
     print(f"Average Sentiment Score: {average_score:.4f}")
     print(colored(f"Overall Sentiment: {overall_sentiment}", color))
-
+    
 @app.post("/stock_list/")
 async def stock_list(list_stock: str):
     today = datetime.today().weekday()
@@ -61,14 +62,16 @@ async def stock_list(list_stock: str):
     start_date = (datetime.today() - timedelta(hours=hours)).strftime('%Y-%m-%d')
     end_date = datetime.today().strftime('%Y-%m-%d')
     list_of_stocks = [stock.strip() for stock in list_stock.split(",")]
-    
+
+    stock_sentiment_results = {}
+
     for stock in list_of_stocks:
         pos_sentiment_score = 0
         pos_score_count = 0
         
         news = extract_alpaca_news(api_key=API_KEY, api_secret=API_SECRET, symbols=stock, start_date=start_date, end_date=end_date)
-        article_titles =  get_article_titles(news)
-        sentiment_list_for_stock =  get_sentiment_list(article_titles)
+        article_titles = get_article_titles(news)
+        sentiment_list_for_stock = get_sentiment_list(article_titles)
 
         for sentiment in sentiment_list_for_stock:
             if sentiment['label'] == 'POSITIVE':
@@ -79,6 +82,9 @@ async def stock_list(list_stock: str):
             average_score = pos_sentiment_score / pos_score_count
             if average_score > SCORE_THRESHOLD:
                 print_stock_sentiment(stock, average_score, 'POSITIVE', 'green')
+                stock_sentiment_results[stock] = {'label': 'POSITIVE', 'score': average_score}
+    
+    return stock_sentiment_results
 
 
 @app.post("/sentiment_graph/")
